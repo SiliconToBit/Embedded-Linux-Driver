@@ -1,0 +1,27 @@
+# Object files and Libraries
+*.o
+*.a
+*.so
+
+# Linux Kernel Module build artifacts
+*.ko
+*.mod
+*.mod.c
+*.symvers
+*.order
+.*.cmd
+.tmp_versions/
+
+# Application executables
+*_app
+main
+test
+
+# Editor and System files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.code-workspace

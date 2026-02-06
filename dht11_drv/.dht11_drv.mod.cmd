@@ -1,1 +1,0 @@
-cmd_/home/gm/Workspace/LinuxDriver/dht11_drv/dht11_drv.mod := printf '%s\n'   dht11_drv.o | awk '!x[$$0]++ { print("/home/gm/Workspace/LinuxDriver/dht11_drv/"$$0) }' > /home/gm/Workspace/LinuxDriver/dht11_drv/dht11_drv.mod

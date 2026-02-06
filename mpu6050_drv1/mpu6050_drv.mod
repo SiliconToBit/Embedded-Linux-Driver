@@ -1,1 +1,0 @@
-/home/alientek/Workspace/VSCodeProjects/LinuxDriver/mpu6050_drv/mpu6050_drv.o
