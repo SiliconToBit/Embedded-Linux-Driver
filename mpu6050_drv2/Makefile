@@ -9,7 +9,9 @@ PWD?=$(shell pwd)
 all:
 	make -C $(KDIR) M=$(PWD) modules
 	echo $(PWD)
+
 clean:
-	rm -f *.ko *.o *.mod *.mod.o *.mod.c *.symvers *.order
+	rm -f *.ko *.o *.mod *.mod.o *.mod.c *.symvers *.order mpu6050_app
+
 output:
-	$(CROSS_COMPILE)gcc mpu6050_app.c -o mpu6050_app
+	$(CROSS_COMPILE)gcc mpu6050_app.c -o mpu6050_app -lm

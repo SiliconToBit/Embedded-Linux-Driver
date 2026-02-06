@@ -11,14 +11,14 @@
 #define DRIVER_NAME "mpu6050"
 
 // MPU6050 寄存器
-#define REG_SMPLRT_DIV      0x19
-#define REG_CONFIG          0x1A
-#define REG_INT_PIN_CFG     0x37  // 中断引脚配置
-#define REG_INT_ENABLE      0x38  // 中断使能
-#define REG_INT_STATUS      0x3A  // 中断状态
-#define REG_ACCEL_XOUT_H    0x3B
-#define REG_PWR_MGMT_1      0x6B
-#define REG_WHO_AM_I        0x75
+#define REG_SMPLRT_DIV 0x19
+#define REG_CONFIG 0x1A
+#define REG_INT_PIN_CFG 0x37 // 中断引脚配置
+#define REG_INT_ENABLE 0x38  // 中断使能
+#define REG_INT_STATUS 0x3A  // 中断状态
+#define REG_ACCEL_XOUT_H 0x3B
+#define REG_PWR_MGMT_1 0x6B
+#define REG_WHO_AM_I 0x75
 
 struct mpu6050_dev
 {
@@ -34,12 +34,16 @@ struct mpu6050_dev
     int data_ready;            // 数据就绪标志位 (1:有数据, 0:无数据)
 };
 
-/* 中断处理函数 (Top Half)
- * 这是一个硬中断，必须极快执行，不能有 I2C 读写(因为它会睡眠)
+/* 中断处理 Bottom Half (Threaded IRQ)
+ * 运行在内核线程中，允许睡眠 (I2C 读写)
  */
-static irqreturn_t mpu6050_irq_handler(int irq, void *dev_id)
+static irqreturn_t mpu6050_irq_thread(int irq, void *dev_id)
 {
     struct mpu6050_dev *mpu = dev_id;
+
+    // 读取状态寄存器，清除中断标志
+    // 虽然设置了 INT_RD_CLEAR，但这里显式读取更保险，能防止中断卡住
+    i2c_smbus_read_byte_data(mpu->client, REG_INT_STATUS);
 
     // 1. 设置标志位
     mpu->data_ready = 1;
@@ -108,17 +112,17 @@ static int mpu6050_init_hw(struct i2c_client *client)
 
     // --- 4. 中断配置 (关键) ---
     // 0x37 INT_PIN_CFG:
-    // Bit 7 (INT_LEVEL): 0=Active High, 1=Active Low
+    // Bit 7 (INT_LEVEL): 1=Active Low, 0=Active High
     // Bit 5 (LATCH_INT_EN): 1=Latch until read, 0=50us pulse
-    // Bit 4 (INT_RD_CLEAR): 1=Clear on read status
-    // 这里写入 0x20 (LATCH_INT_EN=1), 高电平一直保持直到被读取清除
-    // 或者是 0x10 (INT_RD_CLEAR=1)，读状态寄存器清除
-    // 简单起见：0x00 (高电平脉冲，或者高电平保持)
-    // 通常我们希望只要没读走数据，中断线一直拉高，所以配 0x20
-    i2c_smbus_write_byte_data(client, REG_INT_PIN_CFG, 0x20);
+    // Bit 4 (INT_RD_CLEAR): 1=Clear on read status or any read
+    // 设置为 0xA0 (INT_LEVEL=1, LATCH_INT_EN=1)
+    // Active Low + Latch + Edge Trigger Falling
+    i2c_smbus_write_byte_data(client, REG_INT_PIN_CFG, 0xA0);
 
-    // 0x38 INT_ENABLE: 开启 DATA_RDY_INT (Bit 0)
-    i2c_smbus_write_byte_data(client, REG_INT_ENABLE, 0x01);
+    // 0x38 INT_ENABLE: 先关闭中断！防止 request_irq 时此时引脚已经拉高导致中断风暴
+    i2c_smbus_write_byte_data(client, REG_INT_ENABLE, 0x00);
+    // 读一次状态寄存器，清除可能残留的 Status
+    i2c_smbus_read_byte_data(client, REG_INT_STATUS);
 
     return 0;
 }
@@ -154,19 +158,24 @@ static int mpu6050_probe(struct i2c_client *client, const struct i2c_device_id *
         dev_info(&client->dev, "Requesting IRQ: %d\n", mpu->irq);
 
         // 申请中断
-        // IRQF_TRIGGER_HIGH: 必须与 DTS 和 0x37 寄存器配置一致
-        // IRQF_ONESHOT: 因为我们在线程里没用到，这里可以不加，
-        // 但如果用 request_threaded_irq 必须加。
-        ret = devm_request_irq(&client->dev, mpu->irq,
-                               mpu6050_irq_handler,
-                               IRQF_TRIGGER_HIGH | IRQF_SHARED,
-                               DRIVER_NAME,
-                               mpu);
+        // 改为 request_threaded_irq，允许在中断处理中执行 I2C 操作
+        // IRQF_TRIGGER_FALLING: 下降沿触发 (配合 Active Low)
+        // IRQF_ONESHOT: Threaded IRQ 必须加
+        ret = devm_request_threaded_irq(&client->dev, mpu->irq,
+                                        NULL,               // Primary handler (内核默认)
+                                        mpu6050_irq_thread, // Thread handler
+                                        IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_SHARED,
+                                        DRIVER_NAME,
+                                        mpu);
         if (ret)
         {
             dev_err(&client->dev, "Failed to request IRQ: %d\n", ret);
             return ret;
         }
+
+        // 6. 最后一步：使能 MPU6050 内部中断
+        // 此时 IRQ handler 已经注册好，硬件也准备好了
+        i2c_smbus_write_byte_data(client, REG_INT_ENABLE, 0x01);
     }
     else
     {
