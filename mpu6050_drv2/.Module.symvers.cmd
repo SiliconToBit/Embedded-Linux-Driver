@@ -1,0 +1,1 @@
+cmd_/home/gm/Workspace/LinuxDriver/mpu6050_drv2/Module.symvers :=  sed 's/ko$$/o/'  /home/gm/Workspace/LinuxDriver/mpu6050_drv2/modules.order | scripts/mod/modpost       -o /home/gm/Workspace/LinuxDriver/mpu6050_drv2/Module.symvers -e -i Module.symvers -T - 

@@ -1,0 +1,1 @@
+/home/gm/Workspace/LinuxDriver/mpu6050_drv2/mpu6050_drv.o

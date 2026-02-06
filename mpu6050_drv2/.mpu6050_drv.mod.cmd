@@ -1,0 +1,1 @@
+cmd_/home/gm/Workspace/LinuxDriver/mpu6050_drv2/mpu6050_drv.mod := printf '%s\n'   mpu6050_drv.o | awk '!x[$$0]++ { print("/home/gm/Workspace/LinuxDriver/mpu6050_drv2/"$$0) }' > /home/gm/Workspace/LinuxDriver/mpu6050_drv2/mpu6050_drv.mod

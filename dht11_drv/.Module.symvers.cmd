@@ -1,0 +1,1 @@
+cmd_/home/gm/Workspace/LinuxDriver/dht11_drv/Module.symvers :=  sed 's/ko$$/o/'  /home/gm/Workspace/LinuxDriver/dht11_drv/modules.order | scripts/mod/modpost       -o /home/gm/Workspace/LinuxDriver/dht11_drv/Module.symvers -e -i Module.symvers -T - 
