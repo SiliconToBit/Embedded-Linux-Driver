@@ -1,4 +1,3 @@
-obj-m += mpu6050_drv.o
 # KDIR:=/home/alientek/linux_sdk/luckfox_rk3506_sdk/kernel-6.1
 KDIR:=/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel
 ARCH=arm
@@ -6,12 +5,21 @@ CROSS_COMPILE=/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/prebuilts/gcc/linu
 export  ARCH  CROSS_COMPILE
 PWD?=$(shell pwd)
 
-all:
-	make -C $(KDIR) M=$(PWD) modules
-	echo $(PWD)
+DRIVER_DIR := $(PWD)/driver
+APP_DIR := $(PWD)/app
+
+all: modules app
+
+modules:
+	make -C $(KDIR) M=$(DRIVER_DIR) modules
+
+app:
+	$(CROSS_COMPILE)gcc $(APP_DIR)/mpu6050_app.c -o $(APP_DIR)/mpu6050_app -lm
 
 clean:
-	rm -f *.ko *.o *.mod *.mod.o *.mod.c *.symvers *.order mpu6050_app
+	make -C $(KDIR) M=$(DRIVER_DIR) clean
+	rm -f $(APP_DIR)/mpu6050_app
+	rm -f $(DRIVER_DIR)/.*.cmd
+	rm -rf $(DRIVER_DIR)/.tmp_versions
 
-output:
-	$(CROSS_COMPILE)gcc mpu6050_app.c -o mpu6050_app -lm
+.PHONY: all modules app clean
