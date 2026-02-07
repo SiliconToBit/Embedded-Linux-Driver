@@ -146,7 +146,11 @@ static ssize_t dht11_read(struct file *filp, char __user *buf, size_t len, loff_
 
 static int dht11_open(struct inode *inode, struct file *filp)
 {
+    // inode->i_cdev 指向 struct cdev 类型的成员
+    // 我们需要获取包含这个 cdev 的整个 dht11_dev 结构
+    // 通过结构提成员反推结构体地址的 container_of 宏来实现
     struct dht11_dev *dht11 = container_of(inode->i_cdev, struct dht11_dev, cdev);
+    // 将设备私有数据保存到 filp->private_data，供其他方法比如read、write等函数使用
     filp->private_data = dht11;
     return 0;
 }
@@ -165,10 +169,11 @@ static int dht11_probe(struct platform_device *pdev)
     struct device *dev = &pdev->dev;
     struct dht11_dev *dht11;
 
+    // devm_kzalloc 是 设备资源托管 的内存分配函数，会自动在设备移除时释放内存。
     dht11 = devm_kzalloc(dev, sizeof(*dht11), GFP_KERNEL);
     if (!dht11)
         return -ENOMEM;
-
+    // 将私有数据保存到 pdev 中，方便驱动的 probe(), remove() 访问使用
     platform_set_drvdata(pdev, dht11);
 
     // 初始化锁
@@ -238,6 +243,7 @@ static const struct of_device_id dht11_match[] = {
 // 设备树中有对应的节点时，系统会自动帮你把驱动加载进内存。
 MODULE_DEVICE_TABLE(of, dht11_match);
 
+// 驱动结构体
 static struct platform_driver dht11_driver = {
     .driver = {
         .name = DRIVER_NAME,

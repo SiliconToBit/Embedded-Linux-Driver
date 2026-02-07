@@ -204,16 +204,14 @@ static void mpu6050_remove(struct i2c_client *client)
     unregister_chrdev_region(mpu->dev_id, 1);
 }
 
+// 设备树匹配表
 static const struct of_device_id mpu6050_of_match[] = {
     {.compatible = "my,mpu6050"},
     {}};
+// 设备树中有对应的节点时，系统会自动帮你把驱动加载进内存。
 MODULE_DEVICE_TABLE(of, mpu6050_of_match);
 
-static const struct i2c_device_id mpu6050_id[] = {
-    {"mpu6050", 0},
-    {}};
-MODULE_DEVICE_TABLE(i2c, mpu6050_id);
-
+// 驱动结构体
 static struct i2c_driver mpu6050_driver = {
     .driver = {
         .name = DRIVER_NAME,
@@ -221,10 +219,9 @@ static struct i2c_driver mpu6050_driver = {
     },
     .probe = mpu6050_probe,
     .remove = mpu6050_remove,
-    .id_table = mpu6050_id,
 };
-
 // 驱动模块入口和出口，减少驱动注册代码量
 module_i2c_driver(mpu6050_driver);
+
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("gm");
