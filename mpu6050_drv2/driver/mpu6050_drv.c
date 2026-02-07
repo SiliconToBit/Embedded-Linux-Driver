@@ -11,14 +11,14 @@
 #define DRIVER_NAME "mpu6050"
 
 // MPU6050 寄存器
-#define REG_SMPLRT_DIV 0x19
-#define REG_CONFIG 0x1A
-#define REG_INT_PIN_CFG 0x37 // 中断引脚配置
-#define REG_INT_ENABLE 0x38  // 中断使能
-#define REG_INT_STATUS 0x3A  // 中断状态
-#define REG_ACCEL_XOUT_H 0x3B
-#define REG_PWR_MGMT_1 0x6B
-#define REG_WHO_AM_I 0x75
+#define REG_SMPLRT_DIV      0x19
+#define REG_CONFIG          0x1A
+#define REG_INT_PIN_CFG     0x37  // 中断引脚配置
+#define REG_INT_ENABLE      0x38  // 中断使能
+#define REG_INT_STATUS      0x3A  // 中断状态
+#define REG_ACCEL_XOUT_H    0x3B
+#define REG_PWR_MGMT_1      0x6B
+#define REG_WHO_AM_I        0x75
 
 struct mpu6050_dev
 {
