@@ -57,7 +57,7 @@ static irqreturn_t mpu6050_irq_thread(int irq, void *dev_id)
 static ssize_t mpu6050_read(struct file *filp, char __user *buf, size_t len, loff_t *off)
 {
     struct mpu6050_dev *mpu = filp->private_data;
-    char data[14];
+    u8 data[14];
     int ret;
 
     if (len != 14)
