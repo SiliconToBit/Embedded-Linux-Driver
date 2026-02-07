@@ -45,28 +45,40 @@ static int dht11_read_sensor(struct dht11_dev *dht11, unsigned char *buf)
     local_irq_save(flags);
 
     // 3. 检测DHT11响应 (低电平80us -> 高电平80us)
-    if (gpiod_get_value(dht11->gpio))
+    // 允许一定的宽容度等待传感器拉低总线
+    time_cnt = 0;
+    while (gpiod_get_value(dht11->gpio))
     {
-        local_irq_restore(flags);
-        return -EIO; // 未响应
+        udelay(1);
+        if (++time_cnt > 100) // 等待超过100us仍为高，说明无响应
+        {
+            local_irq_restore(flags);
+            return -EIO; // 未响应
+        }
     }
 
-    // 等待低电平结束
+    // 等待低电平80us结束
     time_cnt = 0;
     while (!gpiod_get_value(dht11->gpio))
     {
         udelay(1);
         if (++time_cnt > 100)
-            break;
+        {
+            local_irq_restore(flags);
+            return -EIO; // 响应超时
+        }
     }
 
-    // 等待高电平结束 (准备传输bit)
+    // 等待高电平80us结束 (准备传输bit)
     time_cnt = 0;
     while (gpiod_get_value(dht11->gpio))
     {
         udelay(1);
         if (++time_cnt > 100)
-            break;
+        {
+            local_irq_restore(flags);
+            return -EIO; // 响应超时
+        }
     }
 
     // 4. 读取40位数据
@@ -80,7 +92,10 @@ static int dht11_read_sensor(struct dht11_dev *dht11, unsigned char *buf)
             {
                 udelay(1);
                 if (++time_cnt > 100)
-                    break;
+                {
+                    local_irq_restore(flags);
+                    return -EIO; // 数据传输超时
+                }
             }
 
             // 判决：高电平持续时间决定是0(26-28us)还是1(70us)
@@ -96,7 +111,10 @@ static int dht11_read_sensor(struct dht11_dev *dht11, unsigned char *buf)
                 {
                     udelay(1);
                     if (++time_cnt > 100)
-                        break;
+                    {
+                        local_irq_restore(flags);
+                        return -EIO; // 数据传输超时
+                    }
                 }
             }
         }
@@ -154,13 +172,12 @@ static int dht11_open(struct inode *inode, struct file *filp)
     filp->private_data = dht11;
     return 0;
 }
-static int dht11_release(struct inode *inode, struct file *filp) { return 0; }
+
 
 static const struct file_operations dht11_fops = {
     .owner = THIS_MODULE,
     .open = dht11_open,
     .read = dht11_read,
-    .release = dht11_release,
 };
 
 static int dht11_probe(struct platform_device *pdev)
