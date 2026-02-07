@@ -22,12 +22,10 @@ struct dht11_dev
     struct mutex lock;      // 互斥锁，保护设备访问
 };
 
-static struct dht11_dev dht11;
-
 /* * DHT11 核心读取逻辑
  * 数据格式: 8bit湿度整数 + 8bit湿度小数 + 8bit温度整数 + 8bit温度小数 + 8bit校验
  */
-static int dht11_read_sensor(unsigned char *buf)
+static int dht11_read_sensor(struct dht11_dev *dht11, unsigned char *buf)
 {
     int i, j;
     unsigned char data[5] = {0};
@@ -35,19 +33,19 @@ static int dht11_read_sensor(unsigned char *buf)
     int time_cnt;
 
     // 1. 发送开始信号
-    gpiod_direction_output(dht11.gpio, 0); // 拉低
-    mdelay(20);                            // 至少18ms
-    gpiod_set_value(dht11.gpio, 1);        // 拉高
-    udelay(30);                            // 延时20-40us
+    gpiod_direction_output(dht11->gpio, 0); // 拉低
+    mdelay(20);                             // 至少18ms
+    gpiod_set_value(dht11->gpio, 1);        // 拉高
+    udelay(30);                             // 延时20-40us
 
     // 2. 切换为输入模式准备读取
-    gpiod_direction_input(dht11.gpio);
+    gpiod_direction_input(dht11->gpio);
 
     // --- 关键时序区：关闭中断防止被抢占 ---
     local_irq_save(flags);
 
     // 3. 检测DHT11响应 (低电平80us -> 高电平80us)
-    if (gpiod_get_value(dht11.gpio))
+    if (gpiod_get_value(dht11->gpio))
     {
         local_irq_restore(flags);
         return -EIO; // 未响应
@@ -55,7 +53,7 @@ static int dht11_read_sensor(unsigned char *buf)
 
     // 等待低电平结束
     time_cnt = 0;
-    while (!gpiod_get_value(dht11.gpio))
+    while (!gpiod_get_value(dht11->gpio))
     {
         udelay(1);
         if (++time_cnt > 100)
@@ -64,7 +62,7 @@ static int dht11_read_sensor(unsigned char *buf)
 
     // 等待高电平结束 (准备传输bit)
     time_cnt = 0;
-    while (gpiod_get_value(dht11.gpio))
+    while (gpiod_get_value(dht11->gpio))
     {
         udelay(1);
         if (++time_cnt > 100)
@@ -78,7 +76,7 @@ static int dht11_read_sensor(unsigned char *buf)
         {
             // 等待每个bit的起始低电平(50us)结束
             time_cnt = 0;
-            while (!gpiod_get_value(dht11.gpio))
+            while (!gpiod_get_value(dht11->gpio))
             {
                 udelay(1);
                 if (++time_cnt > 100)
@@ -89,12 +87,12 @@ static int dht11_read_sensor(unsigned char *buf)
             // 延时40us后采样
             udelay(40);
 
-            if (gpiod_get_value(dht11.gpio))
+            if (gpiod_get_value(dht11->gpio))
             {
                 data[i] |= (1 << (7 - j));
                 // 等待剩余的高电平结束
                 time_cnt = 0;
-                while (gpiod_get_value(dht11.gpio))
+                while (gpiod_get_value(dht11->gpio))
                 {
                     udelay(1);
                     if (++time_cnt > 100)
@@ -124,15 +122,16 @@ static ssize_t dht11_read(struct file *filp, char __user *buf, size_t len, loff_
 {
     unsigned char data[2]; // 0: humi, 1: temp
     int ret;
+    struct dht11_dev *dht11 = filp->private_data;
 
     if (len != 2)
         return -EINVAL;
 
-    mutex_lock(&dht11.lock);
+    mutex_lock(&dht11->lock);
 
-    ret = dht11_read_sensor(data);
+    ret = dht11_read_sensor(dht11, data);
 
-    mutex_unlock(&dht11.lock);
+    mutex_unlock(&dht11->lock);
 
     if (ret == 0)
     {
@@ -145,7 +144,12 @@ static ssize_t dht11_read(struct file *filp, char __user *buf, size_t len, loff_
     }
 }
 
-static int dht11_open(struct inode *inode, struct file *filp) { return 0; }
+static int dht11_open(struct inode *inode, struct file *filp)
+{
+    struct dht11_dev *dht11 = container_of(inode->i_cdev, struct dht11_dev, cdev);
+    filp->private_data = dht11;
+    return 0;
+}
 static int dht11_release(struct inode *inode, struct file *filp) { return 0; }
 
 static const struct file_operations dht11_fops = {
@@ -159,40 +163,47 @@ static int dht11_probe(struct platform_device *pdev)
 {
     int ret;
     struct device *dev = &pdev->dev;
+    struct dht11_dev *dht11;
+
+    dht11 = devm_kzalloc(dev, sizeof(*dht11), GFP_KERNEL);
+    if (!dht11)
+        return -ENOMEM;
+
+    platform_set_drvdata(pdev, dht11);
 
     // 初始化锁
-    mutex_init(&dht11.lock);
+    mutex_init(&dht11->lock);
 
     // 1. 从DTS获取GPIO ("dht11-gpios")
-    dht11.gpio = devm_gpiod_get(dev, "data", GPIOD_OUT_HIGH);
-    if (IS_ERR(dht11.gpio))
+    dht11->gpio = devm_gpiod_get(dev, "data", GPIOD_OUT_HIGH);
+    if (IS_ERR(dht11->gpio))
     {
         dev_err(dev, "Failed to get GPIO\n");
-        return PTR_ERR(dht11.gpio);
+        return PTR_ERR(dht11->gpio);
     }
 
     // 2. 注册字符设备，将设备和具体的操作函数关联起来
-    ret = alloc_chrdev_region(&dht11.dev_id, 0, 1, DRIVER_NAME);
+    ret = alloc_chrdev_region(&dht11->dev_id, 0, 1, DRIVER_NAME);
     if (ret < 0)
         return ret;
 
-    cdev_init(&dht11.cdev, &dht11_fops);
-    ret = cdev_add(&dht11.cdev, dht11.dev_id, 1);
+    cdev_init(&dht11->cdev, &dht11_fops);
+    ret = cdev_add(&dht11->cdev, dht11->dev_id, 1);
     if (ret < 0)
         goto fail_free;
 
     // 3. 创建节点，将内核内部的资源映射到用户空间的文件系统
-    dht11.class = class_create(THIS_MODULE, DRIVER_NAME);
-    if (IS_ERR(dht11.class))
+    dht11->class = class_create(THIS_MODULE, DRIVER_NAME);
+    if (IS_ERR(dht11->class))
     {
-        ret = PTR_ERR(dht11.class);
+        ret = PTR_ERR(dht11->class);
         goto fail_cdev;
     }
 
-    dht11.device = device_create(dht11.class, NULL, dht11.dev_id, NULL, DRIVER_NAME);
-    if (IS_ERR(dht11.device))
+    dht11->device = device_create(dht11->class, NULL, dht11->dev_id, NULL, DRIVER_NAME);
+    if (IS_ERR(dht11->device))
     {
-        ret = PTR_ERR(dht11.device);
+        ret = PTR_ERR(dht11->device);
         goto fail_class;
     }
 
@@ -200,20 +211,22 @@ static int dht11_probe(struct platform_device *pdev)
     return 0;
 
 fail_class:
-    class_destroy(dht11.class);
+    class_destroy(dht11->class);
 fail_cdev:
-    cdev_del(&dht11.cdev);
+    cdev_del(&dht11->cdev);
 fail_free:
-    unregister_chrdev_region(dht11.dev_id, 1);
+    unregister_chrdev_region(dht11->dev_id, 1);
     return ret;
 }
 
 static int dht11_remove(struct platform_device *pdev)
 {
-    device_destroy(dht11.class, dht11.dev_id);
-    class_destroy(dht11.class);
-    cdev_del(&dht11.cdev);
-    unregister_chrdev_region(dht11.dev_id, 1);
+    struct dht11_dev *dht11 = platform_get_drvdata(pdev);
+
+    device_destroy(dht11->class, dht11->dev_id);
+    class_destroy(dht11->class);
+    cdev_del(&dht11->cdev);
+    unregister_chrdev_region(dht11->dev_id, 1);
     return 0;
 }
 
@@ -226,14 +239,15 @@ static const struct of_device_id dht11_match[] = {
 MODULE_DEVICE_TABLE(of, dht11_match);
 
 static struct platform_driver dht11_driver = {
-    .probe = dht11_probe,
-    .remove = dht11_remove,
     .driver = {
         .name = DRIVER_NAME,
         .of_match_table = dht11_match,
     },
+    .probe = dht11_probe,
+    .remove = dht11_remove,
 };
 
+// 驱动模块入口和出口，减少驱动注册代码量
 module_platform_driver(dht11_driver);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("gm");

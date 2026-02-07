@@ -88,6 +88,9 @@ static ssize_t mpu6050_read(struct file *filp, char __user *buf, size_t len, lof
 
 static int mpu6050_open(struct inode *inode, struct file *filp)
 {
+    // inode->i_cdev 指向 struct cdev 类型的成员
+    // 我们需要获取包含这个 cdev 的整个 mpu6050_dev 结构
+    // 通过结构提成员反推结构体地址的 container_of 宏来实现
     struct mpu6050_dev *mpu = container_of(inode->i_cdev, struct mpu6050_dev, cdev);
     filp->private_data = mpu;
     return 0;
@@ -133,8 +136,11 @@ static int mpu6050_probe(struct i2c_client *client, const struct i2c_device_id *
     int ret;
 
     // 1. 申请内存
+    // devm_kzalloc 是 设备资源托管 的内存分配函数，会自动在设备移除时释放内存。
     mpu = devm_kzalloc(&client->dev, sizeof(*mpu), GFP_KERNEL);
+    // 保存I2C客户端指针
     mpu->client = client;
+    // 将私有数据保存到client中
     i2c_set_clientdata(client, mpu);
 
     // 2. 初始化等待队列
@@ -217,5 +223,8 @@ static struct i2c_driver mpu6050_driver = {
     .remove = mpu6050_remove,
     .id_table = mpu6050_id,
 };
+
+// 驱动模块入口和出口，减少驱动注册代码量
 module_i2c_driver(mpu6050_driver);
 MODULE_LICENSE("GPL");
+MODULE_AUTHOR("gm");
