@@ -46,7 +46,7 @@ static int dht11_read_sensor(struct dht11_dev *dht11, unsigned char *buf)
     {
         int ret = 0;
 
-        if (retry > 0)
+        if (retry > 0) 
             mdelay(50);
 
         gpiod_direction_output(dht11->gpio, 0);

@@ -1,44 +1,124 @@
-# Linux 驱动开发通用工程模板
+# Linux 驱动开发工程模板 - LED Platform 驱动示例
 
-这是一个标准的 Linux 驱动开发工程结构，包含了驱动模块和测试应用的构建系统。
+这是一个标准的 Linux 驱动开发工程模板，包含：
+- LED Platform 驱动示例（使用设备树和 GPIO）
+- 完整的 clangd 配置（代码补全、索引）
+- 通用的 Makefile 构建系统
+- 快速创建新工程的脚本
 
 ## 目录结构
 
 ```
-.
-├── .vscode/              # VS Code 配置目录
-│   └── c_cpp_properties.json # IntelliSense 包含路径配置 (含 SDK 路径)
-├── Makefile              # 顶层构建脚本 (通常只需修改 APP_NAME)
-├── app/                  # 应用程序目录
-│   └── my_app.c          # 应用程序源码模板 (参考修改)
-└── driver/               # 驱动程序目录
-    ├── Makefile          # 驱动构建脚本 (修改 object 目标名)
-    └── my_driver.c       # 驱动源码模板 (参考修改)
+Driver_Template/
+├── .clangd                    # clangd 配置文件
+├── compile_commands.json      # 编译数据库（运行脚本后生成）
+├── Makefile                   # 根 Makefile
+├── README.md
+├── .vscode/
+│   ├── settings.json          # VS Code 设置
+│   └── extensions.json        # 推荐扩展
+├── driver/
+│   ├── Makefile               # 驱动 Makefile
+│   └── led_drv.c              # LED Platform 驱动示例
+├── app/
+│   └── led_app.c              # LED 测试应用
+└── scripts/
+    ├── generate_compile_commands.py  # 生成编译数据库
+    └── create_new_driver.py          # 从模板创建新工程
 ```
 
-## 快速上手指南
+## 快速开始
 
-### 1. 新建立工程
-将此目录复制为你的新工程目录：
-`cp -r Driver_Template MyNewProject`
+### 1. 编译示例工程
 
-### 2. 修改驱动
-1. 进入 `driver/` 目录。
-2. 将 `my_driver.c` 重命名为你想要的名字，例如 `led_drv.c`。
-3. 修改 `driver/Makefile`，将 `obj-m += my_driver.o` 改为 `obj-m += led_drv.o`。
-4. 编辑 `.c` 文件实现你的驱动逻辑。
+```bash
+cd Driver_Template
 
-### 3. 修改应用
-1. 进入 `app/` 目录。
-2. 将 `my_app.c` 重命名为你想要的名字，例如 `led_test.c`。
-3. 编辑 `.c` 文件实现你的测试逻辑。
+# 生成 clangd 编译数据库
+./scripts/generate_compile_commands.py
 
-### 4. 配置编译
-1. 回到根目录。
-2. 打开 `Makefile`。
-3. 修改 `APP_NAME` 变量：`APP_NAME := led_test` (注意不要加 .c)。
-4. (可选) 如果更换了开发板或SDK，请更新 `KDIR` 和 `CROSS_COMPILE` 路径，模板默认已配置为当前环境。
+# 编译
+make
+```
 
-### 5. 编译与清理
-* **编译全部**: `make`
-* **清理**: `make clean`
+### 2. 创建新驱动工程
+
+```bash
+cd Driver_Template
+
+# 创建名为 my_sensor_drv 的新工程
+./scripts/create_new_driver.py my_sensor_drv
+
+# 或者指定自定义路径
+./scripts/create_new_driver.py my_sensor_drv -p ~/my_projects
+```
+
+### 3. 新工程使用流程
+
+```bash
+cd ../my_sensor_drv
+
+# 1. 替换驱动代码（⚠️ 必须命名为 my_sensor_drv.c）
+cp /your/driver.c driver/my_sensor_drv.c
+rm driver/led_drv.c
+
+# 2. 替换测试应用（可选，任意文件名）
+cp /your/test_app.c app/
+rm app/led_app.c
+
+# 3. 生成 clangd 索引
+./scripts/generate_compile_commands.py
+
+# 4. 编译
+make
+```
+
+## LED 驱动说明
+
+这是一个基于 Platform 总线的 LED 驱动示例，特点：
+- 使用设备树配置 GPIO
+- 自动创建 /dev/led 设备节点
+- 通过 write 系统调用控制 LED 开关
+
+### 设备树配置示例
+
+```dts
+led {
+    compatible = "my,led";
+    status = "okay";
+    led-gpio = <&gpio0 0 GPIO_ACTIVE_HIGH>;
+};
+```
+
+### 测试 LED
+
+```bash
+# 打开 LED
+./app/led_app 1
+
+# 关闭 LED
+./app/led_app 0
+```
+
+## 关键文件说明
+
+| 文件 | 说明 |
+|------|------|
+| `.clangd` | 定义内核头文件路径、编译标志 |
+| `driver/Makefile` | 需与驱动文件名匹配（create_new_driver.py 会自动设置） |
+| `scripts/create_new_driver.py` | 从模板创建新工程的一键脚本 |
+| `scripts/generate_compile_commands.py` | 生成 clangd 所需的编译数据库 |
+
+## 注意事项
+
+⚠️ **驱动文件名要求**：使用 `create_new_driver.py` 创建的工程，驱动文件必须与项目同名
+- 例如：项目叫 `mpu6050_drv` → 驱动文件叫 `mpu6050_drv.c`
+- `driver/Makefile` 中会自动设置为 `obj-m += mpu6050_drv.o`
+
+## 扩展推荐
+
+在 VS Code 中安装：
+- **llvm-vs-code-extensions.vscode-clangd** - clangd 语言服务
+- **xaver.clang-format** - 代码格式化
+
+**禁用**：ms-vscode.cpptools（微软 C/C++ 插件，与 clangd 冲突）
