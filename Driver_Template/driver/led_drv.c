@@ -46,15 +46,22 @@ static int led_open(struct inode* inode, struct file* filp)
     return 0;
 }
 
+static int led_release(struct inode* inode, struct file* filp)
+{
+    return 0;
+}
+
 static const struct file_operations led_fops = {
     .owner = THIS_MODULE,
     .open = led_open,
     .write = led_write,
+    .release = led_release,
 };
 
 static int led_probe(struct platform_device* pdev)
 {
     struct led_dev* led;
+    int ret;
 
     dev_info(&pdev->dev, "LED driver probing...\n");
 
@@ -71,14 +78,39 @@ static int led_probe(struct platform_device* pdev)
         return PTR_ERR(led->led_gpiod);
     }
 
-    alloc_chrdev_region(&led->dev_id, 0, 1, DRIVER_NAME);
+    ret = alloc_chrdev_region(&led->dev_id, 0, 1, DRIVER_NAME);
+    if (ret)
+        return ret;
+
     cdev_init(&led->cdev, &led_fops);
-    cdev_add(&led->cdev, led->dev_id, 1);
+    ret = cdev_add(&led->cdev, led->dev_id, 1);
+    if (ret)
+        goto err_unregister_chrdev;
+
     led->class = class_create(THIS_MODULE, DRIVER_NAME);
+    if (IS_ERR(led->class))
+    {
+        ret = PTR_ERR(led->class);
+        goto err_cdev_del;
+    }
+
     led->device = device_create(led->class, NULL, led->dev_id, NULL, DRIVER_NAME);
+    if (IS_ERR(led->device))
+    {
+        ret = PTR_ERR(led->device);
+        goto err_class_destroy;
+    }
 
     dev_info(&pdev->dev, "LED driver probed successfully!\n");
     return 0;
+
+err_class_destroy:
+    class_destroy(led->class);
+err_cdev_del:
+    cdev_del(&led->cdev);
+err_unregister_chrdev:
+    unregister_chrdev_region(led->dev_id, 1);
+    return ret;
 }
 
 static int led_remove(struct platform_device* pdev)

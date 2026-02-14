@@ -86,7 +86,7 @@ make
 led {
     compatible = "my,led";
     status = "okay";
-    led-gpio = <&gpio0 0 GPIO_ACTIVE_HIGH>;
+    led-gpios = <&gpio0 0 GPIO_ACTIVE_HIGH>;
 };
 ```
 
