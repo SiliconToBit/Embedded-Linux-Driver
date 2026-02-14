@@ -1,0 +1,17 @@
+[
+  {
+    "directory": "/home/gm/Workspace/LinuxDriver/Driver_Template/driver",
+    "command": "/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/prebuilts/gcc/linux-x86/arm/gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf/bin/arm-none-linux-gnueabihf-gcc -c -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/arch/arm/include -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/arch/arm/include/generated -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/include -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/include/uapi -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/include/generated -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/include/generated/uapi -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/arch/arm/include/uapi -nostdinc -D__KERNEL__ -DMODULE -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -fshort-wchar -std=gnu11 -O2 led_drv.mod.c",
+    "file": "led_drv.mod.c"
+  },
+  {
+    "directory": "/home/gm/Workspace/LinuxDriver/Driver_Template/driver",
+    "command": "/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/prebuilts/gcc/linux-x86/arm/gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf/bin/arm-none-linux-gnueabihf-gcc -c -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/arch/arm/include -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/arch/arm/include/generated -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/include -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/include/uapi -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/include/generated -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/include/generated/uapi -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/arch/arm/include/uapi -nostdinc -D__KERNEL__ -DMODULE -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -fshort-wchar -std=gnu11 -O2 led_drv.c",
+    "file": "led_drv.c"
+  },
+  {
+    "directory": "/home/gm/Workspace/LinuxDriver/Driver_Template/app",
+    "command": "/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/prebuilts/gcc/linux-x86/arm/gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf/bin/arm-none-linux-gnueabihf-gcc -c -std=gnu11 -O2 -Wall led_app.c",
+    "file": "led_app.c"
+  }
+]

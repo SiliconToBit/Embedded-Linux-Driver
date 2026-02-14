@@ -5,7 +5,7 @@ import shutil
 import argparse
 
 def main():
-    parser = argparse.ArgumentParser(description='Create a new Linux driver project from Driver_Template')
+    parser = argparse.ArgumentParser(description='Create a new Linux driver project from beep_drv template')
     parser.add_argument('name', help='Name of the new driver (e.g., dht11_drv)')
     parser.add_argument('--path', '-p', 
                         help='Target directory path (default: same directory as template)')
@@ -43,7 +43,7 @@ def main():
         '*.order',
         '.tmp_versions',
         '.*.cmd',
-        'app/led_app',
+        'app/beep_app',
     ]
     
     def ignore_func(dir, files):
@@ -61,7 +61,7 @@ def main():
     with open(driver_makefile, 'r') as f:
         content = f.read()
     
-    content = content.replace('obj-m += led_drv.o', f'obj-m += {args.name}.o')
+    content = content.replace('obj-m += beep_drv.o', f'obj-m += {args.name}.o')
     
     with open(driver_makefile, 'w') as f:
         f.write(content)
@@ -69,8 +69,8 @@ def main():
     print(f'\n✅ Project created successfully!')
     print(f'\nNext steps:')
     print(f'  1. cd {new_project_path}')
-    print(f'  2. Replace driver/led_drv.c with your driver code (rename to {args.name}.c)')
-    print(f'  3. Replace app/led_app.c with your test application (optional)')
+    print(f'  2. Replace driver/beep_drv.c with your driver code (rename to {args.name}.c)')
+    print(f'  3. Replace app/beep_app.c with your test application (optional)')
     print(f'  4. Run: ./scripts/generate_compile_commands.py')
     print(f'  5. Run: make')
 

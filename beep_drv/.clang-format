@@ -1,0 +1,24 @@
+# 简单的代码格式化配置
+# 参考 dht11_drv 的风格
+
+# 基础风格
+BasedOnStyle: LLVM
+
+# 缩进设置
+IndentWidth: 4
+UseTab: Never
+TabWidth: 4
+
+# 列宽限制
+ColumnLimit: 100
+
+# 指针和引用的对齐方式（靠左）
+PointerAlignment: Left
+
+# 大括号风格 - 函数定义时左大括号另起一行
+BreakBeforeBraces: Allman
+
+# 短语句不压缩
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty

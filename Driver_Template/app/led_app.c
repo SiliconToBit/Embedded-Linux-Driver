@@ -1,9 +1,9 @@
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
 #include <unistd.h>
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     int fd;
     unsigned char val;

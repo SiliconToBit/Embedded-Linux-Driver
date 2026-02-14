@@ -1,28 +1,26 @@
 #include <linux/cdev.h>
 #include <linux/fs.h>
-#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/of.h>
-#include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 #include <linux/uaccess.h>
 
 #define DRIVER_NAME "led"
 
-struct led_dev {
-  dev_t dev_id;
-  struct cdev cdev;
-  struct class *class;
-  struct device *device;
-  int led_gpio;
+struct led_dev
+{
+    dev_t dev_id;
+    struct cdev cdev;
+    struct class* class;
+    struct device* device;
+    struct gpio_desc* led_gpiod;
 };
 
-
-
-static ssize_t led_write(struct file *filp, const char __user *buf, size_t len, loff_t *off)
+static ssize_t led_write(struct file* filp, const char __user* buf, size_t len, loff_t* off)
 {
-    struct led_dev *led = filp->private_data;
+    struct led_dev* led = filp->private_data;
     int val;
     int ret;
 
@@ -34,16 +32,16 @@ static ssize_t led_write(struct file *filp, const char __user *buf, size_t len, 
         return -EFAULT;
 
     if (val == 0)
-        gpio_set_value(led->led_gpio, 0);
+        gpiod_set_value(led->led_gpiod, 0);
     else
-        gpio_set_value(led->led_gpio, 1);
+        gpiod_set_value(led->led_gpiod, 1);
 
     return 1;
 }
 
-static int led_open(struct inode *inode, struct file *filp)
+static int led_open(struct inode* inode, struct file* filp)
 {
-    struct led_dev *led = container_of(inode->i_cdev, struct led_dev, cdev);
+    struct led_dev* led = container_of(inode->i_cdev, struct led_dev, cdev);
     filp->private_data = led;
     return 0;
 }
@@ -54,47 +52,38 @@ static const struct file_operations led_fops = {
     .write = led_write,
 };
 
-static int led_probe(struct platform_device *pdev)
+static int led_probe(struct platform_device* pdev)
 {
-    int ret;
-    struct led_dev *led;
-    struct device_node *np = pdev->dev.of_node;
+    struct led_dev* led;
 
     dev_info(&pdev->dev, "LED driver probing...\n");
 
     led = devm_kzalloc(&pdev->dev, sizeof(*led), GFP_KERNEL);
-  if (!led)
-    return -ENOMEM;
+    if (!led)
+        return -ENOMEM;
 
-  platform_set_drvdata(pdev, led);
+    platform_set_drvdata(pdev, led);
 
-  led->led_gpio = of_get_named_gpio(np, "led-gpio", 0);
-  if (!gpio_is_valid(led->led_gpio)) {
-    dev_err(&pdev->dev, "Invalid LED GPIO\n");
-    return -EINVAL;
-  }
+    led->led_gpiod = devm_gpiod_get(&pdev->dev, "led", GPIOD_OUT_LOW);
+    if (IS_ERR(led->led_gpiod))
+    {
+        dev_err(&pdev->dev, "Failed to get LED GPIO\n");
+        return PTR_ERR(led->led_gpiod);
+    }
 
-  ret = devm_gpio_request(&pdev->dev, led->led_gpio, "led");
-  if (ret) {
-    dev_err(&pdev->dev, "Failed to request LED GPIO\n");
-    return ret;
-  }
+    alloc_chrdev_region(&led->dev_id, 0, 1, DRIVER_NAME);
+    cdev_init(&led->cdev, &led_fops);
+    cdev_add(&led->cdev, led->dev_id, 1);
+    led->class = class_create(THIS_MODULE, DRIVER_NAME);
+    led->device = device_create(led->class, NULL, led->dev_id, NULL, DRIVER_NAME);
 
-  gpio_direction_output(led->led_gpio, 0);
-
-  alloc_chrdev_region(&led->dev_id, 0, 1, DRIVER_NAME);
-  cdev_init(&led->cdev, &led_fops);
-  cdev_add(&led->cdev, led->dev_id, 1);
-  led->class = class_create(THIS_MODULE, DRIVER_NAME);
-  led->device = device_create(led->class, NULL, led->dev_id, NULL, DRIVER_NAME);
-
-  dev_info(&pdev->dev, "LED driver probed successfully!\n");
-  return 0;
+    dev_info(&pdev->dev, "LED driver probed successfully!\n");
+    return 0;
 }
 
-static int led_remove(struct platform_device *pdev)
+static int led_remove(struct platform_device* pdev)
 {
-    struct led_dev *led = platform_get_drvdata(pdev);
+    struct led_dev* led = platform_get_drvdata(pdev);
     device_destroy(led->class, led->dev_id);
     class_destroy(led->class);
     cdev_del(&led->cdev);
@@ -103,8 +92,7 @@ static int led_remove(struct platform_device *pdev)
     return 0;
 }
 
-static const struct of_device_id led_of_match[] = {{.compatible = "my,led"},
-                                                   {}};
+static const struct of_device_id led_of_match[] = {{.compatible = "my,led"}, {}};
 MODULE_DEVICE_TABLE(of, led_of_match);
 
 static struct platform_driver led_driver = {

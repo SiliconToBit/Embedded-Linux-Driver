@@ -21,6 +21,7 @@ def main():
     
     compile_commands = []
     
+    # ========== 驱动文件配置 ==========
     kernel_includes = [
         f'-I{args.kdir}/arch/arm/include',
         f'-I{args.kdir}/arch/arm/include/generated',
@@ -31,7 +32,7 @@ def main():
         f'-I{args.kdir}/arch/arm/include/uapi',
     ]
     
-    common_flags = [
+    driver_flags = [
         '-nostdinc',
         '-D__KERNEL__',
         '-DMODULE',
@@ -50,16 +51,23 @@ def main():
     
     driver_files = [f for f in os.listdir(driver_dir) if f.endswith('.c')]
     for file in driver_files:
-        cmd = [gcc, '-c'] + kernel_includes + common_flags + [file]
+        cmd = [gcc, '-c'] + kernel_includes + driver_flags + [file]
         compile_commands.append({
             'directory': driver_dir,
             'command': ' '.join(cmd),
             'file': file
         })
     
+    # ========== 应用程序文件配置 ==========
+    app_flags = [
+        '-std=gnu11',
+        '-O2',
+        '-Wall'
+    ]
+    
     app_files = [f for f in os.listdir(app_dir) if f.endswith('.c')]
     for file in app_files:
-        cmd = [gcc, '-c', f'-I{args.kdir}/include', '-std=gnu11', '-O2', file]
+        cmd = [gcc, '-c'] + app_flags + [file]
         compile_commands.append({
             'directory': app_dir,
             'command': ' '.join(cmd),

@@ -9,7 +9,6 @@ CompileFlags:
     - -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/include/generated
     - -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/include/generated/uapi
     - -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/arch/arm/include/uapi
-    - -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/drivers
     - -D__KERNEL__
     - -DMODULE
     - -Wall
@@ -23,3 +22,23 @@ CompileFlags:
     - -O2
   Remove:
     - -W*
+
+---
+If:
+  PathMatch: app/.*\.c
+CompileFlags:
+  Remove:
+    - -nostdinc
+    - -D__KERNEL__
+    - -DMODULE
+    - -I/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel/.*
+    - -Wundef
+    - -Wstrict-prototypes
+    - -Wno-trigraphs
+    - -fno-strict-aliasing
+    - -fno-common
+    - -fshort-wchar
+  Add:
+    - -std=gnu11
+    - -Wall
+    - -O2
