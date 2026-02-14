@@ -123,7 +123,7 @@ clean:
 '''
     write_file(os.path.join(template_dir, 'driver', 'Makefile'), driver_makefile)
     
-    # 6. driver/led_drv.c (LED Platform 驱动示例)
+    # 6. driver/led_drv.c (LED Platform 驱动示例 - 使用 GPIO 描述符，无静态全局变量)
     led_driver = '''#include <linux/module.h>
 #include <linux/init.h>
 #include <linux/fs.h>
@@ -131,10 +131,11 @@ clean:
 #include <linux/uaccess.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
-#include <linux/of_gpio.h>
-#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 
 #define DRIVER_NAME "led"
+#define DEVICE_NAME "led"
+#define CLASS_NAME "led"
 
 struct led_dev
 {
@@ -142,15 +143,14 @@ struct led_dev
     struct cdev cdev;
     struct class *class;
     struct device *device;
-    int led_gpio;
+    struct gpio_desc *led_gpio;
 };
-
-static struct led_dev *led;
 
 static ssize_t led_write(struct file *filp, const char __user *buf, size_t len, loff_t *off)
 {
     int val;
     int ret;
+    struct led_dev *led = filp->private_data;
 
     if (len != 1)
         return -EINVAL;
@@ -159,16 +159,14 @@ static ssize_t led_write(struct file *filp, const char __user *buf, size_t len, 
     if (ret)
         return -EFAULT;
 
-    if (val == 0)
-        gpio_set_value(led->led_gpio, 0);
-    else
-        gpio_set_value(led->led_gpio, 1);
+    gpiod_set_value(led->led_gpio, val ? 1 : 0);
 
     return 1;
 }
 
 static int led_open(struct inode *inode, struct file *filp)
 {
+    struct led_dev *led = container_of(inode->i_cdev, struct led_dev, cdev);
     filp->private_data = led;
     return 0;
 }
@@ -182,48 +180,67 @@ static const struct file_operations led_fops = {
 static int led_probe(struct platform_device *pdev)
 {
     int ret;
-    struct device_node *np = pdev->dev.of_node;
+    struct device *dev = &pdev->dev;
+    struct led_dev *led;
 
-    dev_info(&pdev->dev, "LED driver probing...\\n");
+    dev_info(dev, "LED driver probing...\\n");
 
-    led = devm_kzalloc(&pdev->dev, sizeof(*led), GFP_KERNEL);
+    led = devm_kzalloc(dev, sizeof(*led), GFP_KERNEL);
     if (!led)
         return -ENOMEM;
 
     platform_set_drvdata(pdev, led);
 
-    led->led_gpio = of_get_named_gpio(np, "led-gpio", 0);
-    if (!gpio_is_valid(led->led_gpio))
+    led->led_gpio = devm_gpiod_get(dev, "led", GPIOD_OUT_LOW);
+    if (IS_ERR(led->led_gpio))
     {
-        dev_err(&pdev->dev, "Invalid LED GPIO\\n");
-        return -EINVAL;
+        dev_err(dev, "Failed to get LED GPIO: %ld\\n", PTR_ERR(led->led_gpio));
+        return PTR_ERR(led->led_gpio);
     }
 
-    ret = devm_gpio_request(&pdev->dev, led->led_gpio, "led");
-    if (ret)
-    {
-        dev_err(&pdev->dev, "Failed to request LED GPIO\\n");
+    ret = alloc_chrdev_region(&led->dev_id, 0, 1, DEVICE_NAME);
+    if (ret < 0)
         return ret;
+
+    cdev_init(&led->cdev, &led_fops);
+    ret = cdev_add(&led->cdev, led->dev_id, 1);
+    if (ret < 0)
+        goto fail_free;
+
+    led->class = class_create(THIS_MODULE, CLASS_NAME);
+    if (IS_ERR(led->class))
+    {
+        ret = PTR_ERR(led->class);
+        goto fail_cdev;
     }
 
-    gpio_direction_output(led->led_gpio, 0);
+    led->device = device_create(led->class, NULL, led->dev_id, NULL, DEVICE_NAME);
+    if (IS_ERR(led->device))
+    {
+        ret = PTR_ERR(led->device);
+        goto fail_class;
+    }
 
-    alloc_chrdev_region(&led->dev_id, 0, 1, DRIVER_NAME);
-    cdev_init(&led->cdev, &led_fops);
-    cdev_add(&led->cdev, led->dev_id, 1);
-    led->class = class_create(THIS_MODULE, DRIVER_NAME);
-    led->device = device_create(led->class, NULL, led->dev_id, NULL, DRIVER_NAME);
-
-    dev_info(&pdev->dev, "LED driver probed successfully!\\n");
+    dev_info(dev, "LED driver probed successfully!\\n");
     return 0;
+
+fail_class:
+    class_destroy(led->class);
+fail_cdev:
+    cdev_del(&led->cdev);
+fail_free:
+    unregister_chrdev_region(led->dev_id, 1);
+    return ret;
 }
 
 static int led_remove(struct platform_device *pdev)
 {
+    struct led_dev *led = platform_get_drvdata(pdev);
+
     device_destroy(led->class, led->dev_id);
     class_destroy(led->class);
     cdev_del(&led->cdev);
-    unregister_chrdev_region(led->dev_id);
+    unregister_chrdev_region(led->dev_id, 1);
     dev_info(&pdev->dev, "LED driver removed\\n");
     return 0;
 }
@@ -533,9 +550,26 @@ make
 ## LED 驱动说明
 
 这是一个基于 Platform 总线的 LED 驱动示例，特点：
+- 使用现代 GPIO 描述符 API（struct gpio_desc *）
+- 不使用静态全局变量，支持多实例
 - 使用设备树配置 GPIO
 - 自动创建 /dev/led 设备节点
 - 通过 write 系统调用控制 LED 开关
+
+### 不使用静态全局变量的好处
+
+1. **支持多设备实例**：同一个驱动可以同时驱动多个相同的硬件设备
+2. **更好的封装**：设备数据与设备实例绑定，代码结构更清晰
+3. **线程安全**：避免全局变量竞态条件
+4. **资源管理**：使用 devm_* 系列函数，设备移除时自动释放资源
+5. **符合 Linux 内核最佳实践**：这是现代 Linux 驱动的标准写法
+
+### 关键实现方式
+
+- `platform_set_drvdata(pdev, dev)`: 在 probe 中保存设备数据
+- `platform_get_drvdata(pdev)`: 在 remove 中获取设备数据
+- `container_of(inode->i_cdev, struct xxx_dev, cdev)`: 通过 cdev 成员反推完整设备结构体
+- `filp->private_data`: 在 open 中保存设备指针，供 read/write 使用
 
 ### 设备树配置示例
 
@@ -543,9 +577,11 @@ make
 led {
     compatible = "my,led";
     status = "okay";
-    led-gpio = <&gpio0 0 GPIO_ACTIVE_HIGH>;
+    led-gpios = <&gpio0 0 GPIO_ACTIVE_HIGH>;
 };
 ```
+
+注意：使用 GPIO 描述符 API 时，设备树属性名使用 `-gpios` 后缀（复数）。
 
 ### 测试 LED
 
