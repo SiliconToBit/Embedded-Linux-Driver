@@ -22,7 +22,7 @@ struct beep_dev
 
 static ssize_t beep_write(struct file* filp, const char __user* buf, size_t len, loff_t* off)
 {
-    unsigned char val;
+    u8 val;
     int ret;
     struct beep_dev* beep = filp->private_data;
 
