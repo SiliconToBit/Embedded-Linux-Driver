@@ -1,4 +1,3 @@
-# KDIR:=/home/alientek/linux_sdk/luckfox_rk3506_sdk/kernel-6.1
 KDIR:=/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/kernel
 ARCH=arm
 CROSS_COMPILE=/home/gm/Workspace/linux_sdk/luckfox_rk3506_sdk/prebuilts/gcc/linux-x86/arm/gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf/bin/arm-none-linux-gnueabihf-
