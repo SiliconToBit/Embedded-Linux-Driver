@@ -22,7 +22,7 @@ struct beep_dev
 
 static ssize_t beep_write(struct file* filp, const char __user* buf, size_t len, loff_t* off)
 {
-    int val;
+    unsigned char val;
     int ret;
     struct beep_dev* beep = filp->private_data;
 
@@ -110,6 +110,8 @@ fail_free:
 static int beep_remove(struct platform_device* pdev)
 {
     struct beep_dev* beep = platform_get_drvdata(pdev);
+
+    gpiod_set_value(beep->beep_gpio, 0);
 
     device_destroy(beep->class, beep->dev_id);
     class_destroy(beep->class);
